@@ -2,8 +2,6 @@ const { REST } = require('@discordjs/rest');
 const { Routes } = require('discord-api-types/v9');
 const fs = require('fs');
 
-
-
 module.exports = (client) => {
   client.handleCommands = async () => {
     const commandFolders = fs.readdirSync('./src/commands');
@@ -16,9 +14,17 @@ module.exports = (client) => {
 
       for (const file of commandFiles) {
         const command = require(`../../commands/${folder}/${file}`);
-        commands.set(command.data.name, command);
-        commandArray.push(command.data.toJSON());
-        console.log(`Command: ${command.data.name} has been registered`);
+        
+        let commandData;
+        if (typeof command.data === 'function') {
+          commandData = await command.data();
+        } else {
+          commandData = command.data;
+        }
+
+        commands.set(commandData.name, command);
+        commandArray.push(commandData.toJSON());
+        console.log(`Command: ${commandData.name} has been registered`);
       }
     }
 
@@ -31,11 +37,11 @@ module.exports = (client) => {
     try {
       console.log('Started refreshing application (/) commands');
       
-        await rest.put(Routes.applicationCommands(CLIENT_ID), {
-          body: client.commandArray,
-        });
+      await rest.put(Routes.applicationCommands(CLIENT_ID), {
+        body: client.commandArray,
+      });
 
-        console.log(`Successfully reloaded application (/) commands for guild`);
+      console.log(`Successfully reloaded application (/) commands for guild`);
     } catch (error) {
       console.error(error);
     }

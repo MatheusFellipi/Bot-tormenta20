@@ -1,64 +1,52 @@
 const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
+const knex = require('../../../db/db.js');
 
 module.exports = {
-  data: new SlashCommandBuilder()
-    .setName('poderes')
-    .setDescription('Escolha um poder e veja os detalhes!')
-    .addStringOption((option) =>
-      option
-        .setName('poderes')
-        .setDescription('Escolha um poder')
-        .setRequired(true)
-        .addChoices(
-          { name: 'Fogo', value: 'fogo' },
-          { name: 'Água', value: 'agua' },
-          { name: 'Terra', value: 'terra' },
-          { name: 'Ar', value: 'ar' },
-        )
-    ),
+  data: async () => {
+    const poderes = await knex('poderes').select('name', 'type');
+
+    // Limita as escolhas a no máximo 25
+    const limitedPoderes = poderes.slice(0, 25);
+
+    const builder = new SlashCommandBuilder()
+      .setName('poderes')
+      .setDescription('Escolha um poder e veja os detalhes!')
+      .addStringOption((option) => {
+        limitedPoderes.forEach((poder) => {
+          option.addChoices({ name: poder.name, value: poder.type });
+        });
+        return option
+          .setName('poderes')
+          .setDescription('Escolha um poder')
+          .setRequired(true);
+      });
+    return builder;
+  },
 
   async execute(interaction, client) {
-    // Defer the reply to allow time for processing
     await interaction.deferReply();
 
-    // Captura a escolha do usuário
     const poderEscolhido = interaction.options.getString('poderes');
+    const poder = await knex('poderes').where('type', poderEscolhido).first();
 
-    // Define os detalhes para cada poder
-    const poderesDetalhes = {
-      fogo: {
-        title: '🔥 Poder do Fogo',
-        description: 'O poder do fogo representa destruição e paixão.',
-        color: 0xff4500, // Vermelho fogo
-      },
-      agua: {
-        title: '💧 Poder da Água',
-        description: 'O poder da água representa fluidez e adaptação.',
-        color: 0x1e90ff, // Azul água
-      },
-      terra: {
-        title: '🌍 Poder da Terra',
-        description: 'O poder da terra representa força e estabilidade.',
-        color: 0x228b22, // Verde terra
-      },
-      ar: {
-        title: '🌬️ Poder do Ar',
-        description: 'O poder do ar representa liberdade e movimento.',
-        color: 0x87ceeb, // Azul claro
-      },
-    };
+    if (!poder) {
+      return interaction.editReply({
+        content: 'Poder não encontrado!',
+        ephemeral: true,
+      });
+    }
 
-    // Obtém os detalhes do poder escolhido
-    const poder = poderesDetalhes[poderEscolhido];
-
-    // Cria a embed com os detalhes do poder
     const embed = new EmbedBuilder()
-      .setTitle(poder.title)
+      .setTitle(`🌟 ${poder.name}`)
       .setDescription(poder.description)
-      .setColor(poder.color)
+      .setColor(0x00ff00)
+      .addFields(
+        { name: 'Tipo', value: poder.type, inline: true },
+        { name: 'Text', value: poder.description, inline: true },
+        { name: 'Requisitos', value: poder.requirements || 'Nenhum', inline: true }
+      )
       .setFooter({ text: 'Escolha feita com sabedoria!' });
 
-    // Envia a embed como resposta
     await interaction.editReply({ embeds: [embed] });
   },
 };
