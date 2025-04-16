@@ -1,52 +1,52 @@
-const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
-const knex = require('../../../db/db.js');
+const { SlashCommandBuilder } = require("discord.js");
+const poderes = require("../../shared/dados/poderes.js");
 
 module.exports = {
-  data: async () => {
-    const poderes = await knex('poderes').select('name', 'type');
+  data: new SlashCommandBuilder()
+    .setName("poderes")
+    .setDescription("Escolha um poder e veja os detalhes!")
+    .addStringOption((option) =>
+      option
+        .setName("poder")
+        .setDescription("Escolha um poder")
+        .setAutocomplete(true)
+    ),
 
-    // Limita as escolhas a no máximo 25
-    const limitedPoderes = poderes.slice(0, 25);
+  async autocomplete(interaction) {
+    const focusedValue = interaction.options.getFocused().toLowerCase();
 
-    const builder = new SlashCommandBuilder()
-      .setName('poderes')
-      .setDescription('Escolha um poder e veja os detalhes!')
-      .addStringOption((option) => {
-        limitedPoderes.forEach((poder) => {
-          option.addChoices({ name: poder.name, value: poder.type });
-        });
-        return option
-          .setName('poderes')
-          .setDescription('Escolha um poder')
-          .setRequired(true);
-      });
-    return builder;
+    const prefixMatches = poderes.filter(
+      (p) => p.name.toLowerCase().startsWith(focusedValue) );
+
+    const containsMatches = poderes.filter(
+      (p) => !p.name.toLowerCase().startsWith(focusedValue));
+
+    const combined = prefixMatches
+      .concat(containsMatches)
+      .slice(0, 25)
+      .map((p) => ({
+        name: p.name,
+        value: p.name,
+      }));
+
+    await interaction.respond(combined);
   },
 
-  async execute(interaction, client) {
-    await interaction.deferReply();
+  async execute(interaction) {
+    if (!interaction.isCommand()) return;
 
-    const poderEscolhido = interaction.options.getString('poderes');
-    const poder = await knex('poderes').where('type', poderEscolhido).first();
-
-    if (!poder) {
-      return interaction.editReply({
-        content: 'Poder não encontrado!',
-        ephemeral: true,
-      });
+    const selectedKey = interaction.options.getString("poder");
+    if (selectedKey) {
+      const poderSelecionado = poderes.find((p) => p.name === selectedKey);
+      if (poderSelecionado) {
+        await interaction.reply(
+          `**${poderSelecionado.name}**:\n${poderSelecionado.description}`
+        );
+      } else {
+        await interaction.reply("Poder não encontrado!");
+      }
+    } else {
+      await interaction.reply("Você não selecionou nenhum poder.");
     }
-
-    const embed = new EmbedBuilder()
-      .setTitle(`🌟 ${poder.name}`)
-      .setDescription(poder.description)
-      .setColor(0x00ff00)
-      .addFields(
-        { name: 'Tipo', value: poder.type, inline: true },
-        { name: 'Text', value: poder.description, inline: true },
-        { name: 'Requisitos', value: poder.requirements || 'Nenhum', inline: true }
-      )
-      .setFooter({ text: 'Escolha feita com sabedoria!' });
-
-    await interaction.editReply({ embeds: [embed] });
   },
 };
